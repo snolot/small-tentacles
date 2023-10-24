@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>matrix test</title>
+	<link rel="stylesheet" type="text/css" href="./css/style.css">
+	<style type="text/css">
+		.title{
+			width:1000px;
+		}
+	</style>
+	<!-- <script src="./toxiclibs.min.js"></script> -->
+</head>
+<body>
+	<div class="title">small-Tentacles</div>
+	<div class="subtitle">WebGL Particles<div class="info">Done with three.js</div></div>
+	<script type="module">
+		import * as THREE from './libs/build/three.module.js';
+		import {
+			OrbitControls
+		} from './libs/examples/jsm/controls/OrbitControls.js';
+		import { simplex3 } from  './js/perlin.js';
+		import { pointsOnSphere } from "./js/Fibonacci.js";
+		import { curl, generateNoiseFunction } from "./js/curl.js";
+		import {Arm} from './js/Arm2.js';
+
+		const title = document.querySelector('.title');
+		const subtitle = document.querySelector('.subtitle');
+
+		let COUNT = 40;
+
+		const clock = new THREE.Clock();
+
+		let camera, scene, renderer;
+		let bones = [];
+		let meshes = [];
+		let frame = 0.0;
+		let frame2 = 0.0;
+		const cos = Math.cos;
+		const sin = Math.sin;
+		const seeds = pointsOnSphere(1);
+
+		const d = 10;
+		const seed = seeds[0]
+		const offset = seed.clone().multiplyScalar(d);
+
+		const pos = new THREE.Vector3();
+		const prevPos = new THREE.Vector3();
+
+		let scale = 1.0;
+		const twistiness = THREE.MathUtils.randFloat(.1, .2);
+		const up = new THREE.Vector3(0, 1, 0);
+		const length = 60;
+		const fn = generateNoiseFunction();
+
+		const datas = [];	
+		const randomInRange = THREE.MathUtils.randInt;
+
+		let arms = [];
+		let prevTime = performance.now();
+		let t = 0;
+		
+		const clamp = THREE.MathUtils.clamp;
+
+		var simplexNoise = simplex3;
+
+		var SPREAD     = 0.025;
+		var SPEED      = 30.0;
+		var ANGLE      = .5;
+	
+		const dist = new THREE.Vector3(0,.02,0);	
+		const p = new THREE.Vector3();
+		
+		const radians = (degrees) => {
+		    return degrees * Math.PI / 180;
+		} 
+
+		const ball = new THREE.Mesh(
+			new THREE.SphereBufferGeometry(.5, 12, 12),
+			new THREE.MeshStandardMaterial({color:new THREE.Color(1,0,0)})
+		);
+
+		const initArm = () => {
+			for(let i=0; i<5; i++){
+				const arm = Arm(scene);
+				arms.push(arm);
+			}	
+		};
+
+		const init = () => {
+			camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, .01, 300);
+
+			camera.position.z = 8;
+			scene = new THREE.Scene();
+
+			renderer = new THREE.WebGLRenderer({antialias:true});
+			renderer.setSize(innerWidth, innerHeight);
+
+			document.body.appendChild(renderer.domElement);
+
+			renderer.shadowMap.enabled = true;
+			renderer.outputEncoding = THREE.sRGBEncoding;
+			renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+			renderer.setClearColor(0x111111, 1);
+
+			const hemiLight = new THREE.HemisphereLight(0xe7e9ed, 0x7d828e, 0.75);
+			hemiLight.position.set(0, 50, 0);
+			scene.add(hemiLight);
+
+			const dirLight = new THREE.DirectionalLight(0xe0e2e6, 0.5);
+			dirLight.position.set(-1, 1.75, 1);
+			scene.add(dirLight);
+
+			dirLight.castShadow = true;
+
+			dirLight.shadow.mapSize.width = 2048;
+			dirLight.shadow.mapSize.height = 2048;
+
+			const d = 1;
+
+			dirLight.shadow.camera.left = -d;
+			dirLight.shadow.camera.right = d;
+			dirLight.shadow.camera.top = d;
+			dirLight.shadow.camera.bottom = -d;
+
+			dirLight.shadow.camera.near = 1;
+			dirLight.shadow.camera.far = 4;
+
+			initArm()
+			//updateArm()
+
+			const control = new OrbitControls(camera, renderer.domElement);
+			title.classList.add('show')
+			subtitle.classList.add('show')
+
+		};
+
+		const updateArm = () => {
+			frame += .07;
+		
+			for(let i=0; i<5; i++){
+				const arm = arms[i];
+				arm.update(frame);
+			}
+		};
+
+		const update = () => {
+			requestAnimationFrame(update);
+
+			//scene.updateWorldMatrix();
+			//scene.updateMatrix();
+
+			const time = performance.now();
+			const dt = time - prevTime;
+			prevTime = time;
+
+			t += dt / 500;
+			t = clamp(t, 0, 1);
+
+			updateArm()
+			
+			renderer.render(scene, camera);
+		};
+
+		init();
+		update();
+	</script>
+</body>
+</html>

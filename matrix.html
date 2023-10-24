@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>matrix test</title>
+	<!-- <script src="./toxiclibs.min.js"></script> -->
+</head>
+<body>
+	<script type="module">
+		import * as THREE from './libs/build/three.module.js';
+		import {
+			OrbitControls
+		} from './libs/examples/jsm/controls/OrbitControls.js';
+		import { simplex3 } from  './js/perlin.js';
+		import { pointsOnSphere } from "./js/Fibonacci.js";
+		import { curl, generateNoiseFunction } from "./js/curl.js";
+
+		let COUNT = 40;
+
+		const clock = new THREE.Clock();
+
+		let camera, scene, renderer;
+		let bones = [];
+		let meshes = [];
+		let frame = 0.0;
+
+		const cos = Math.cos;
+		const sin = Math.sin;
+		const seeds = pointsOnSphere(1);
+
+		const d = 10;
+		const seed = seeds[0]
+		const offset = seed.clone().multiplyScalar(d);
+
+		const pos = new THREE.Vector3();
+		const prevPos = new THREE.Vector3();
+
+		let scale = 1.0;
+		const twistiness = THREE.MathUtils.randFloat(.1, .2);
+		const up = new THREE.Vector3(0, 1, 0);
+		const length = 60;
+		const fn = generateNoiseFunction();
+
+		const datas = [];	
+		const randomInRange = THREE.MathUtils.randInt;
+
+		const radians = (degrees) => {
+		    return degrees * Math.PI / 180;
+		} 
+
+		const ball = new THREE.Mesh(
+			new THREE.SphereBufferGeometry(.5, 12, 12),
+			new THREE.MeshStandardMaterial({color:new THREE.Color(1,0,0)}));
+
+		const initArmA = () => {
+			const baseMesh = new THREE.Mesh(
+				new THREE.BoxBufferGeometry( .1, .1, .1 ),
+				new THREE.MeshStandardMaterial()
+			);
+
+			for(let i = 0; i < COUNT; i ++){
+
+				const mat = new THREE.Matrix4();
+
+				const mesh = baseMesh.clone();
+				mesh.castShadow = mesh.receiveShadow = true;
+
+				meshes.push(mesh);
+				bones.push(mat);
+				
+				mesh.matrixAutoUpdate = false;
+				mesh.matrix.copy(mat)
+
+				scene.add(mesh);
+			}
+
+			//scene.add(ball);
+		};
+
+
+		const initArm = () => {
+			const baseMesh = new THREE.Mesh(
+				new THREE.BoxBufferGeometry( .1, .1, .1 ),
+				new THREE.MeshStandardMaterial()
+			);
+
+			for(let i = 0; i < length; i += .5){
+
+				const mesh = baseMesh.clone();
+				mesh.castShadow = mesh.receiveShadow = true;
+				meshes.push(mesh);
+
+				const mat = new THREE.Matrix4();
+
+				const dir = curl(pos.clone().add(offset).multiplyScalar(twistiness), fn);
+		    	dir.normalize().multiplyScalar(0.1 * scale);
+		    	pos.add(dir);
+
+		    	const p = pos.clone();
+
+				bones.push(mat);
+				scene.add(mesh);
+
+				mesh.position.copy(p);
+
+			    scale = 1 - i / length;	
+				mesh.scale.set(scale, scale, scale);
+
+			    up.set(
+			        randomInRange(-1, 1),
+			        randomInRange(-1, 1),
+			        randomInRange(-1, 1)
+			    ).normalize();	
+			    
+			    mesh.lookAt(prevPos, p, up.clone());			    
+			    
+			    mesh.updateMatrix()
+			    mesh.updateWorldMatrix()
+
+			    datas.push({
+			    	scale,
+			    	length:dir.length(),
+			    	mesh,
+			    	up:up.clone()
+			    });
+			    
+			    mesh.matrixAutoUpdate = false;
+			    mesh.updateMatrix();
+
+			    prevPos.copy(mesh.position.clone());
+			}
+
+			//scene.add(ball);
+		};
+
+		const init = () => {
+			camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, .01, 300);
+
+			camera.position.z = 8;
+			scene = new THREE.Scene();
+
+			renderer = new THREE.WebGLRenderer({antialias:true});
+			renderer.setSize(innerWidth, innerHeight);
+
+			document.body.appendChild(renderer.domElement);
+
+			renderer.shadowMap.enabled = true;
+			renderer.outputEncoding = THREE.sRGBEncoding;
+			renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+			renderer.setClearColor(0xFFFFFF, 1);
+
+			const hemiLight = new THREE.HemisphereLight(0xe7e9ed, 0x7d828e, 0.75);
+			hemiLight.position.set(0, 50, 0);
+			scene.add(hemiLight);
+
+			const dirLight = new THREE.DirectionalLight(0xe0e2e6, 0.5);
+			dirLight.position.set(-1, 1.75, 1);
+			scene.add(dirLight);
+
+			dirLight.castShadow = true;
+
+			dirLight.shadow.mapSize.width = 2048;
+			dirLight.shadow.mapSize.height = 2048;
+
+			const d = 1;
+
+			dirLight.shadow.camera.left = -d;
+			dirLight.shadow.camera.right = d;
+			dirLight.shadow.camera.top = d;
+			dirLight.shadow.camera.bottom = -d;
+
+			dirLight.shadow.camera.near = 1;
+			dirLight.shadow.camera.far = 4;
+
+			initArm()
+			//updateArm()
+
+			const control = new OrbitControls(camera, renderer.domElement);
+		};
+
+		let prevTime = performance.now();
+		let t = 0;
+		
+		const clamp = THREE.MathUtils.clamp;
+
+		var simplexNoise = simplex3;
+
+		var SPREAD     = 0.025;
+		var SPEED      = 30.0;
+		var ANGLE      = .5;
+		
+		
+		const dist = new THREE.Vector3(0,.02,0);
+		
+		const p = new THREE.Vector3();
+
+		const updateArm2 = () => {
+			COUNT = datas.length;
+			//console.log(COUNT)
+			for(let i=0; i<COUNT; i++){
+
+				const rx = (simplexNoise( i*SPREAD+frame/SPEED, 0, 0) )*ANGLE;
+				const ry = (simplexNoise( 0, i*SPREAD+frame/SPEED, 0) )*ANGLE;
+				const rz = (simplexNoise( 0, 0, i*SPREAD+frame/SPEED) )*ANGLE;
+
+				
+				const {mesh,length,scale} = datas[i];
+
+				const dir = curl(mesh.position.clone()/*.add(new THREE.Vector3(rx, ry, rz))*/.multiplyScalar(twistiness), fn);
+
+				dir.normalize();
+				//dir.multiplyScalar(3 * (1 - scale));
+
+				if(i==0){
+					mesh.rotateX(radians(dir.x));
+					mesh.rotateY(radians(dir.y));
+					mesh.rotateZ(radians(dir.z));
+
+					mesh.updateMatrix();
+
+				}else{
+					const m2 = datas[i-1].mesh;
+					const _up = datas[i-1].up;
+
+					const pos = m2.position.clone();
+					mesh.position.copy(pos);
+
+					//mesh.rotation.copy(m2.rotation.clone());
+					mesh.translateZ(length);
+					mesh.rotateX(radians(dir.x));
+					mesh.rotateY(radians(dir.y));
+					mesh.rotateZ(radians(dir.z));
+					
+					mesh.updateMatrix();
+					
+				}
+
+				prevPos.copy(mesh.position.clone())
+			}
+		}
+
+		const updateArm = () => {
+			frame += .07;
+
+			for(let i=0; i<COUNT; i++){
+
+				const rx = (simplexNoise( i*SPREAD+frame/SPEED, 0, 0) )*ANGLE;
+				const ry = (simplexNoise( 0, i*SPREAD+frame/SPEED, 0) )*ANGLE;
+				const rz = (simplexNoise( 0, 0, i*SPREAD+frame/SPEED) )*ANGLE;
+
+				bones[i].identity();
+				var m = bones[i].clone();
+				
+				if(i>0){
+					m.multiply(bones[i-1].clone());	
+				}
+
+				var tm = new THREE.Matrix4();
+				tm.makeTranslation(0,.1,0);
+
+				const s = 1 - i*.006;
+
+				const rotMatrix  = new THREE.Matrix4();
+				const scaleMatrix  = new THREE.Matrix4();
+
+				rotMatrix.makeRotationX(radians(rx));
+				m.multiply(rotMatrix);
+
+				rotMatrix.makeRotationY(radians(ry));
+				m.multiply(rotMatrix);
+
+				rotMatrix.makeRotationZ(radians(rz));
+				//m.multiply(rotMatrix);
+				m.multiply(rotMatrix);
+				m.multiply(tm);
+				
+				scaleMatrix.makeScale(s,s,s)
+				m.multiply(scaleMatrix);
+				//console.log(bones[i]);
+
+				//bones[i].applyMatrix4(m);
+
+				//bones[i].updateMatrixWorld();
+
+				//if(i>0){
+					bones[i].copy(m);
+					meshes[i].matrix = m;
+				//}
+			}
+
+			//ball.position.copy(p.setFromMatrixPosition(m))
+		}
+
+		const update = () => {
+			requestAnimationFrame(update);
+
+			scene.updateWorldMatrix();
+			scene.updateMatrix();
+
+			const time = performance.now();
+			const dt = time - prevTime;
+			prevTime = time;
+
+			t += dt / 500;
+			t = clamp(t, 0, 1);
+
+			updateArm2()
+			
+			renderer.render(scene, camera);
+		};
+
+		init();
+		update();
+	</script>
+</body>
+</html>
